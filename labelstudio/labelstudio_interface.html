@@ -1,0 +1,65 @@
+<View>
+    <Header value="Was trifft auf die Bildern zu?" size="2"
+            style="display: flex; justify-content: space-evenly; width: 100%"/>
+    <View>
+        <!-- Choices mit gleichem Abstand zwischen Bildern und zum Rand -->
+        <View style="display: flex; justify-content: space-evenly; width: 100%">
+            <Choices name="zustand2020" toName="img-2020">
+                <Choice value="Dach nicht erkenntbar"/>
+                <Choice value="Haus im Bauprozess"/>
+                <Choice value="Solar auf dem Dach"/>
+            </Choices>
+            <Choices name="zustand2021" toName="img-2021">
+                <Choice value="Dach nicht erkenntbar"/>
+                <Choice value="Haus im Bauprozess"/>
+                <Choice value="Solar auf dem Dach"/>
+            </Choices>
+            <Choices name="zustand2022" toName="img-2022">
+                <Choice value="Dach nicht erkenntbar"/>
+                <Choice value="Haus im Bauprozess"/>
+                <Choice value="Solar auf dem Dach"/>
+            </Choices>
+            <Choices name="zustand2023" toName="img-2023">
+                <Choice value="Dach nicht erkenntbar"/>
+                <Choice value="Haus im Bauprozess"/>
+                <Choice value="Solar auf dem Dach"/>
+            </Choices>
+            <Choices name="zustand2024" toName="img-2024">
+                <Choice value="Dach nicht erkenntbar"/>
+                <Choice value="Haus im Bauprozess"/>
+                <Choice value="Solar auf dem Dach"/>
+            </Choices>
+        </View>
+        <View style="display: flex; justify-content: space-evenly; width: 100%; max-height: 600px;">
+            <Image name="img-2020" value="$link_2020"/>
+            <Image name="img-2021" value="$link_2021"/>
+            <Image name="img-2022" value="$link_2022"/>
+            <Image name="img-2023" value="$link_2023"/>
+            <Image name="img-2024" value="$link_2024"/>
+        </View>
+        <Header value="Was trifft auf den Vergleich zwischen den Bildern zu?" size="2"
+                style="display: flex; justify-content: space-evenly; width: 100%"/>
+        <View style="display: flex; justify-content: space-evenly; width: 100%">
+            <!-- Zwischen Bild 2020 und Bild 2021 -->
+            <Choices name="comparison_2020_2021" toName="img-2021">
+                <Choice value="Dach wurde neugemacht"/>
+                <Choice value="Dach wurde gereinigt"/>
+            </Choices>
+            <!-- Zwischen Bild 2021 und Bild 2022 -->
+            <Choices name="comparison_2021_2022" toName="img-2022">
+                <Choice value="Dach wurde neugemacht"/>
+                <Choice value="Dach wurde gereinigt"/>
+            </Choices>
+            <!-- Zwischen Bild 2022 und Bild 2023 -->
+            <Choices name="comparison_2022_2023" toName="img-2023">
+                <Choice value="Dach wurde neugemacht"/>
+                <Choice value="Dach wurde gereinigt"/>
+            </Choices>
+            <!-- Zwischen Bild 2023 und Bild 2024 -->
+            <Choices name="comparison_2023_2024" toName="img-2024">
+                <Choice value="Dach wurde neugemacht"/>
+                <Choice value="Dach wurde gereinigt"/>
+            </Choices>
+        </View>
+    </View>
+</View>

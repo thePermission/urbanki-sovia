@@ -1,0 +1,42 @@
+[project]
+name = "sovia"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "duckdb",
+    "geopandas>=1.0.1",
+    "matplotlib>=3.10.0",
+    "open-clip-torch>=2.32.0",
+    "opencv-python>=4.11.0.86",
+    "seaborn>=0.13.2",
+    "sentence-transformers>=4.0.2",
+    "torch>=2.7.0",
+    "torchvision>=0.22.0",
+    "IPython>=9.2.0",
+    "numpy>=2.3.0",
+    "streamlit>=1.49.1",
+    "streamlit-folium>=0.25.1",
+    "pandas-stubs==2.3.2.250827",
+]
+
+[build-system]
+requires = ["uv_build>=0.6.6,<0.7"]
+build-backend = "uv_build"
+
+[project.scripts]
+"init_database" = "sovia.data_preparation.recreate_database:main"
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu128" },
+]
+torchvision = [
+  { index = "pytorch-cu128" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true

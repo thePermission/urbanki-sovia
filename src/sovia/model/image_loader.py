@@ -52,7 +52,7 @@ class ImageLoader:
                 image.save(self._get_filepath(polygon_id, year))
                 break
             except Exception as e:
-                print("Bild konnte nicht geladen werden.")
+                print("Bild konnte nicht geladen werden.", e)
                 time.sleep(1)
 
     def _load_img_from_file(self, polygon_id: str, year: str) -> ImageFile:

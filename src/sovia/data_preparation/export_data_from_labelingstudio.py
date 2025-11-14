@@ -175,7 +175,7 @@ def export_next_trainingsset():
 # load_labels("second_labels.csv")
 # create_training_view()
 # export_first_trainingsset()
-export_second_trainingsset()
+# export_second_trainingsset()
 
 #
 # with create_connection() as con:

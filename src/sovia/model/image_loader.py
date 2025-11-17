@@ -59,6 +59,8 @@ class ImageLoader:
         return Image.open(self._get_filepath(polygon_id, year))
 
     def _get_filepath(self, polygon_id: str, year: str) -> Path:
+        if not os.path.isdir(self.img_cache_path / str(year)):
+            os.mkdir(self.img_cache_path / str(year))
         return self.img_cache_path / str(year) / f"{polygon_id}.png"
 
     def _prepare_mask(self, polygon_points: str, activation_value=255) -> Tensor:

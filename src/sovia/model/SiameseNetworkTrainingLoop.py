@@ -52,8 +52,8 @@ class TrainingConfig:
     batch_size: int = 128
     learning_rate: float = 1e-4
     distance_threshold: float = 0.5
-    rotate = True
-    flip = True
+    rotate = False
+    flip = False
     start_from_checkpoint: bool = True
     num_workers: int = max(1, min(8, (os.cpu_count() or 4) - 1))
     prefetch_factor: int = 4  # prefetch queues of images

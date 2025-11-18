@@ -88,7 +88,7 @@ def klassifiziere_row(model, image_loader, oi, year_1, link_1, year_2, link_2, g
         output1, output2 = model(img1.unsqueeze(0), img2.unsqueeze(0))
         return float(nn.functional.pairwise_distance(output1, output2))
     except Exception:
-        return float(9999)
+        return float(0)
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ class ContrastiveLoss(nn.Module):
 @dataclass
 class TrainingConfig:
     num_epochs: int = 100
-    batch_size: int = 512
+    batch_size: int = 256
     learning_rate: float = 1e-4
     distance_threshold: float = 0.5
     rotate = False

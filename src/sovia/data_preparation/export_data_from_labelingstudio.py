@@ -172,12 +172,8 @@ def export_next_trainingsset():
         """).to_csv(file_name=f"{get_path_to_data(__file__)}/input/training_data/second_training.csv")
 
 
-# load_labels("second_labels.csv")
-# create_training_view()
-# export_first_trainingsset()
-# export_second_trainingsset()
-
-#
-# with create_connection() as con:
-#     con.sql(
-#         f"SELECT count(*) FROM {labeled_data_tablename} WHERE label=0 AND NOT dach_gereinigt AND NOT hat_solar AND NOT haus_im_bau AND dach_erkennbar").show()
+if __name__ == "__main__":
+    # export_next_trainingsset()
+    with create_connection() as con:
+        con.sql(
+            f"SELECT labeled.*, geom FROM {labeled_data_tablename} as labeled LEFT JOIN {all_polygons_tablename} as ap ON ap.oi = labeled.oi").to_csv(file_name=f"{get_path_to_data(__file__)}/input/training_data/second_training.csv")

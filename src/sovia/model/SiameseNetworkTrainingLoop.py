@@ -241,7 +241,7 @@ class SiameseTrainer:
         num_positive = (train_data['label'] == 1).sum()
         num_negative = (train_data['label'] == 0).sum()
         pos_weight = num_negative / num_positive
-
+        print(pos_weight)
         train_loader = DataLoader(train_dataset, batch_size=self.config.batch_size, shuffle=True)
         valid_loader = DataLoader(valid_dataset, batch_size=self.config.batch_size,
                                   shuffle=False) if valid_dataset else None

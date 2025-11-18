@@ -32,7 +32,7 @@ class SiameseNetwork(nn.Module):
 
 
 class ContrastiveLoss(nn.Module):
-    def __init__(self, margin=1.0, pos_weight=1.0):
+    def __init__(self, margin=2.0, pos_weight=1.0):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
         self.pos_weight = pos_weight
@@ -51,7 +51,7 @@ class TrainingConfig:
     num_epochs: int = 100
     batch_size: int = 256
     learning_rate: float = 1e-4
-    distance_threshold: float = 0.5
+    distance_threshold: float = 0.3
     rotate = False
     flip = False
     start_from_checkpoint: bool = True

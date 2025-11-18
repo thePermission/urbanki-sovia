@@ -27,7 +27,7 @@ class ImageLoader:
             transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
         ])
 
-    @lru_cache(maxsize=70000)
+
     def load(self, oi, year_1, link_1, year_2, link_2, geom) -> tuple[Tensor, Tensor]:
         image_1 = self._load_image(oi, year_1, link_1)
         image_2 = self._load_image(oi, year_2, link_2)

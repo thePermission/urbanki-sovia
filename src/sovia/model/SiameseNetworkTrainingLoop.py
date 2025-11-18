@@ -32,15 +32,18 @@ class SiameseNetwork(nn.Module):
 
 
 class ContrastiveLoss(nn.Module):
-    def __init__(self, margin=1.0):
+    def __init__(self, margin=1.0, pos_weight=1.0):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
+        self.pos_weight = pos_weight
 
     def forward(self, output1, output2, label):
         euclidean_distance = nn.functional.pairwise_distance(output1, output2)
-        loss = (label) * torch.pow(euclidean_distance, 2) + \
-               (1 - label) * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2)
+        loss_positive = label * torch.pow(euclidean_distance, 2) * self.pos_weight
+        loss_negative = (1 - label) * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2)
+        loss = loss_positive + loss_negative
         return loss.mean()
+
 
 
 @dataclass
@@ -235,12 +238,15 @@ class SiameseTrainer:
     def train(self, train_data: DataFrame, validate_data: DataFrame) -> None:
         train_dataset = SiameseDataset(train_data, self.config, True)
         valid_dataset = SiameseDataset(validate_data, self.config)
+        num_positive = (train_data['label'] == 1).sum()
+        num_negative = (train_data['label'] == 0).sum()
+        pos_weight = num_negative / num_positive
 
         train_loader = DataLoader(train_dataset, batch_size=self.config.batch_size, shuffle=True)
         valid_loader = DataLoader(valid_dataset, batch_size=self.config.batch_size,
                                   shuffle=False) if valid_dataset else None
         last_saved_f1 = 0
-        criterion = ContrastiveLoss()
+        criterion = ContrastiveLoss(pos_weight=pos_weight)
         start_epoch = self._load_checkpoint()
         for epoch in range(start_epoch, self.config.num_epochs):
             train_metrics = self._train_epoch(train_loader, criterion, self.optimizer)

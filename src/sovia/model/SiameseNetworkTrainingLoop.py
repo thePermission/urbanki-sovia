@@ -173,10 +173,10 @@ class SimpleEmbeddingNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv1 = nn.Conv2d(4, 64, 5)  # Input: 3 channels (RGB)
-        self.bn1 = nn.BatchNorm2d(self.conv1.out_channels)
+        # self.bn1 = nn.BatchNorm2d(self.conv1.out_channels)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(self.conv1.out_channels, 128, 5)
-        self.bn2 = nn.BatchNorm2d(self.conv2.out_channels)
+        # self.bn2 = nn.BatchNorm2d(self.conv2.out_channels)
         self.adaptive_pool = nn.AdaptiveAvgPool2d((4, 4))
         adaptive_avg_pool_output_size = self.adaptive_pool.output_size[0] * self.adaptive_pool.output_size[1]
         self.fc1 = nn.Linear(self.conv2.out_channels * adaptive_avg_pool_output_size, 256)
@@ -184,8 +184,8 @@ class SimpleEmbeddingNet(nn.Module):
         self.dropout = nn.Dropout(p=0.5)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.bn1(self.conv1(x))))
-        x = self.pool(F.relu(self.bn2(self.conv2(x))))
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
         x = self.dropout(x)
         x = self.adaptive_pool(x)  # Ensure output spatial size is 4x4
         x = x.view(x.size(0), -1)

@@ -172,15 +172,15 @@ class TrainingVisualizer:
 class SimpleEmbeddingNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(4, 32, 5)  # Input: 3 channels (RGB)
+        self.conv1 = nn.Conv2d(4, 64, 5)  # Input: 3 channels (RGB)
         self.bn1 = nn.BatchNorm2d(self.conv1.out_channels)
         self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(self.conv1.out_channels, 64, 5)
+        self.conv2 = nn.Conv2d(self.conv1.out_channels, 128, 5)
         self.bn2 = nn.BatchNorm2d(self.conv2.out_channels)
         self.adaptive_pool = nn.AdaptiveAvgPool2d((4, 4))
         adaptive_avg_pool_output_size = self.adaptive_pool.output_size[0] * self.adaptive_pool.output_size[1]
         self.fc1 = nn.Linear(self.conv2.out_channels * adaptive_avg_pool_output_size, 256)
-        self.fc2 = nn.Linear(self.fc1.out_features, 64)
+        self.fc2 = nn.Linear(self.fc1.out_features, 128)
         self.dropout = nn.Dropout(p=0.5)
 
     def forward(self, x):

@@ -50,7 +50,7 @@ class ContrastiveLoss(nn.Module):
 class TrainingConfig:
     num_epochs: int = 100
     batch_size: int = 256
-    learning_rate: float = 1e-4
+    learning_rate: float = 5e-5
     distance_threshold: float = 0.3
     rotate = False
     flip = False
@@ -172,18 +172,20 @@ class TrainingVisualizer:
 class SimpleEmbeddingNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(4, 64, 5)  # Input: 3 channels (RGB)
+        self.conv1 = nn.Conv2d(4, 32, 5)  # Input: 3 channels (RGB)
+        self.bn1 = nn.BatchNorm2d(self.conv1.out_channels)
         self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(self.conv1.out_channels, 128, 5)
+        self.conv2 = nn.Conv2d(self.conv1.out_channels, 64, 5)
+        self.bn2 = nn.BatchNorm2d(self.conv2.out_channels)
         self.adaptive_pool = nn.AdaptiveAvgPool2d((4, 4))
         adaptive_avg_pool_output_size = self.adaptive_pool.output_size[0] * self.adaptive_pool.output_size[1]
         self.fc1 = nn.Linear(self.conv2.out_channels * adaptive_avg_pool_output_size, 256)
-        self.fc2 = nn.Linear(self.fc1.out_features, 128)
-        self.dropout = nn.Dropout(p=0.3)
+        self.fc2 = nn.Linear(self.fc1.out_features, 64)
+        self.dropout = nn.Dropout(p=0.5)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
+        x = self.pool(F.relu(self.bn1(self.conv1(x))))
+        x = self.pool(F.relu(self.bn2(self.conv2(x))))
         x = self.dropout(x)
         x = self.adaptive_pool(x)  # Ensure output spatial size is 4x4
         x = x.view(x.size(0), -1)
@@ -206,11 +208,17 @@ def load_labeled_data(labelstudio_csv_path: str) -> Tuple[DataFrame, DataFrame]:
     validation_dfs = []
     for sub_df in [label_1, haus_im_bau, hat_sloar, dach_gereinigt, dach_nicht_erkennbar, rest]:
         df_shuffled = sub_df.sample(frac=1)
-        df_splits = np.array_split(df_shuffled, 4)
+        df_splits = np.array_split(df_shuffled, 10)
         trainings_dfs.append(pd.DataFrame(df_splits[0]))
         trainings_dfs.append(pd.DataFrame(df_splits[1]))
         trainings_dfs.append(pd.DataFrame(df_splits[2]))
-        validation_dfs.append(pd.DataFrame(df_splits[3]))
+        trainings_dfs.append(pd.DataFrame(df_splits[3]))
+        trainings_dfs.append(pd.DataFrame(df_splits[4]))
+        trainings_dfs.append(pd.DataFrame(df_splits[5]))
+        trainings_dfs.append(pd.DataFrame(df_splits[6]))
+        trainings_dfs.append(pd.DataFrame(df_splits[7]))
+        trainings_dfs.append(pd.DataFrame(df_splits[8]))
+        validation_dfs.append(pd.DataFrame(df_splits[9]))
     train_set = pd.concat(trainings_dfs)
     validate_set = pd.concat(validation_dfs)
     return train_set, validate_set
@@ -234,6 +242,9 @@ class SiameseTrainer:
         embedding_net = SimpleEmbeddingNet()  # Your own architecture here
         self.model = SiameseNetwork(embedding_net).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.config.learning_rate, weight_decay=1e-5)
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer, mode='min', factor=0.5, patience=5
+        )
 
     def train(self, train_data: DataFrame, validate_data: DataFrame) -> None:
         train_dataset = SiameseDataset(train_data, self.config, True)
@@ -260,6 +271,7 @@ class SiameseTrainer:
             if valid_metrics["f1"] > last_saved_f1:
                 self._save_checkpoint(epoch + 1)
                 last_saved_f1 = valid_metrics["f1"]
+            self.scheduler.step(valid_metrics['loss'])
 
     def _save_checkpoint(self, epoch):
         checkpoint = {

@@ -31,18 +31,64 @@ class SiameseNetwork(nn.Module):
         return out1, out2
 
 
-class ContrastiveLoss(nn.Module):
-    def __init__(self, margin=2.0, pos_weight=1.0):
-        super(ContrastiveLoss, self).__init__()
+class FocalContrastiveLoss(nn.Module):
+    def __init__(self, margin=2.0, pos_weight=1.0, gamma=2.0, alpha=0.25):
+        """
+        Focal Loss für Contrastive Learning
+
+        Args:
+            margin: Margin für negative Paare
+            pos_weight: Gewichtung für positive Paare
+            gamma: Focusing parameter (höher = mehr Fokus auf schwierige Beispiele)
+            alpha: Balance zwischen positiven und negativen Beispielen
+        """
+        super(FocalContrastiveLoss, self).__init__()
         self.margin = margin
         self.pos_weight = pos_weight
+        self.gamma = gamma
+        self.alpha = alpha
 
     def forward(self, output1, output2, label):
         euclidean_distance = nn.functional.pairwise_distance(output1, output2)
+
+        # Standard Contrastive Loss
         loss_positive = label * torch.pow(euclidean_distance, 2) * self.pos_weight
         loss_negative = (1 - label) * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2)
-        loss = loss_positive + loss_negative
+
+        # Focal Weight berechnen
+        # Für positive Paare: Wenn Distanz hoch (schwierig), höheres Gewicht
+        # Für negative Paare: Wenn Distanz niedrig (schwierig), höheres Gewicht
+        with torch.no_grad():
+            # Normalisierte "Confidence" für jedes Beispiel
+            p_t = torch.where(
+                label == 1,
+                torch.exp(-euclidean_distance / self.margin),  # Für positive: klein ist gut
+                1 - torch.exp(-euclidean_distance / self.margin)  # Für negative: groß ist gut
+            )
+            # Focal weight: (1 - p_t)^gamma
+            focal_weight = torch.pow(1 - p_t, self.gamma)
+
+        # Alpha-Gewichtung
+        alpha_weight = torch.where(label == 1, self.alpha, 1 - self.alpha)
+
+        # Kombiniere alles
+        loss = focal_weight * alpha_weight * (loss_positive + loss_negative)
+
         return loss.mean()
+
+
+# class ContrastiveLoss(nn.Module):
+#     def __init__(self, margin=2.0, pos_weight=1.0):
+#         super(ContrastiveLoss, self).__init__()
+#         self.margin = margin
+#         self.pos_weight = pos_weight
+#
+#     def forward(self, output1, output2, label):
+#         euclidean_distance = nn.functional.pairwise_distance(output1, output2)
+#         loss_positive = label * torch.pow(euclidean_distance, 2) * self.pos_weight
+#         loss_negative = (1 - label) * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2)
+#         loss = loss_positive + loss_negative
+#         return loss.mean()
 
 
 
@@ -57,6 +103,9 @@ class TrainingConfig:
     start_from_checkpoint: bool = True
     num_workers: int = max(1, min(8, (os.cpu_count() or 4) - 1))
     prefetch_factor: int = 4  # prefetch queues of images
+    focal_gamma: float = 2.0  # Focusing parameter
+    focal_alpha: float = 0.25  # Balance parameter
+
 
 
 class SiameseDataset(Dataset):
@@ -252,12 +301,15 @@ class SiameseTrainer:
         num_positive = (train_data['label'] == 1).sum()
         num_negative = (train_data['label'] == 0).sum()
         pos_weight = num_negative / num_positive
-        print(pos_weight)
         train_loader = DataLoader(train_dataset, batch_size=self.config.batch_size, shuffle=True)
         valid_loader = DataLoader(valid_dataset, batch_size=self.config.batch_size,
                                   shuffle=False) if valid_dataset else None
         last_saved_f1 = 0
-        criterion = ContrastiveLoss(pos_weight=pos_weight)
+        criterion = FocalContrastiveLoss(
+            pos_weight=pos_weight,
+            gamma=self.config.focal_gamma,
+            alpha=self.config.focal_alpha
+        )
         start_epoch = self._load_checkpoint()
         for epoch in range(start_epoch, self.config.num_epochs):
             train_metrics = self._train_epoch(train_loader, criterion, self.optimizer)

@@ -363,7 +363,7 @@ class SiameseTrainer:
         with torch.no_grad():
             for img1, img2, label in loader:
                 img1, img2, label = img1.to(self.device), img2.to(self.device), label.to(self.device)
-                classification = self.model.forward_with_similarity(img1, img2)
+                classification = self.model.forward_with_classification(img1, img2)
                 loss = criterion(classification, label)
                 running_loss += loss.item() * img1.size(0)
                 pred = (classification > self.config.distance_threshold).long()

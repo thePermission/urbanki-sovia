@@ -30,6 +30,33 @@ class SiameseNetwork(nn.Module):
         out2 = self.embedding_net(x2)
         return out1, out2
 
+    def forward_with_classification(self, x1, x2):
+        """Neue Methode die Sigmoid-Similarity zurückgibt"""
+        out1 = self.embedding_net(x1)
+        out2 = self.embedding_net(x2)
+        # Distanz berechnen
+        dist = F.pairwise_distance(out1, out2)
+        similarity = torch.sigmoid(dist)
+        return similarity
+
+
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=0.25, gamma=2.0):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+
+    def forward(self, inputs, targets):
+        """
+        inputs: Wahrscheinlichkeiten zwischen 0 und 1 (nach Sigmoid!)
+        targets: 0 oder 1 Labels
+        """
+        BCE_loss = F.binary_cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-BCE_loss)  # pt = p wenn target=1, sonst 1-p
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * BCE_loss
+        return focal_loss.mean()
+
+
 
 class ContrastiveLoss(nn.Module):
     def __init__(self, margin=1.0):
@@ -240,7 +267,7 @@ class SiameseTrainer:
         valid_loader = DataLoader(valid_dataset, batch_size=self.config.batch_size,
                                   shuffle=False) if valid_dataset else None
         last_saved_f1 = 0
-        criterion = ContrastiveLoss()
+        criterion = FocalLoss(alpha=0.25, gamma=2.0)
         start_epoch = self._load_checkpoint()
         for epoch in range(start_epoch, self.config.num_epochs):
             train_metrics = self._train_epoch(train_loader, criterion, self.optimizer)
@@ -314,14 +341,13 @@ class SiameseTrainer:
         for img1_batch, img2_batch, label in loader:
             img1_batch, img2_batch, label = img1_batch.to(self.device), img2_batch.to(self.device), label.to(
                 self.device)
-            output1, output2 = self.model(img1_batch, img2_batch)
-            loss = criterion(output1, output2, label)
+            classification = self.model.forward_with_classification(img1_batch, img2_batch)
+            loss = criterion(classification, label)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             running_loss += loss.item() * img1_batch.size(0)
-            dist = torch.nn.functional.pairwise_distance(output1, output2)
-            pred = (dist < self.config.distance_threshold).long()
+            pred = (classification > self.config.distance_threshold).long()
             all_preds.extend(pred.cpu().numpy().tolist())
             all_targets.extend(label.cpu().numpy().tolist())
         avg_loss = running_loss / len(loader.dataset)
@@ -337,10 +363,10 @@ class SiameseTrainer:
         with torch.no_grad():
             for img1, img2, label in loader:
                 img1, img2, label = img1.to(self.device), img2.to(self.device), label.to(self.device)
-                output1, output2 = self.model(img1, img2)
-                loss = criterion(output1, output2, label)
+                classification = self.model.forward_with_similarity(img1, img2)
+                loss = criterion(classification, label)
                 running_loss += loss.item() * img1.size(0)
-                pred = (torch.nn.functional.pairwise_distance(output1, output2) < self.config.distance_threshold).long()
+                pred = (classification > self.config.distance_threshold).long()
                 all_preds.extend(pred.cpu().numpy().tolist())
                 all_targets.extend(label.cpu().numpy().tolist())
         avg_loss = running_loss / len(loader.dataset)

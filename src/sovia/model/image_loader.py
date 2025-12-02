@@ -10,7 +10,6 @@ import shapely.wkt
 import torch
 from PIL import Image
 from PIL.ImageFile import ImageFile
-from cachetools.func import fifo_cache
 from torch import Tensor
 from torchvision import transforms
 
@@ -27,7 +26,7 @@ class ImageLoader:
             transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
         ])
 
-    @fifo_cache(maxsize=1000)
+
     def load(self, oi, year_1, link_1, year_2, link_2, geom) -> tuple[Tensor, Tensor]:
         image_1 = self._load_image(oi, year_1, link_1)
         image_2 = self._load_image(oi, year_2, link_2)

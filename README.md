@@ -36,3 +36,5 @@ data-preparation/
         ├───data_preparation    # Datenvorverarbeitung
         └───model               # Entwicklung und Training des Modells
 ```
+# Lizenz
+[GNU General Public License v3.0](LICENSE)

@@ -21,9 +21,32 @@ from sovia.model.image_loader import ImageLoader
 
 
 class SiameseNetwork(nn.Module):
-    def __init__(self, embedding_net):
+    def __init__(
+            self,
+            embedding_net,
+            *,
+            init_scale: float = 10.0,
+            init_margin: float = 1.0,
+            learnable_margin: bool = True,
+            learnable_scale: bool = False,
+    ):
         super().__init__()
         self.embedding_net = embedding_net  # For example, a simple CNN
+
+        if init_scale <= 0:
+            raise ValueError("init_scale must be > 0")
+
+        self._scale_param = nn.Parameter(torch.tensor(float(init_scale)), requires_grad=learnable_scale)
+
+        if learnable_margin:
+            self.margin = nn.Parameter(torch.tensor(float(init_margin)), requires_grad=True)
+        else:
+            self.register_buffer("margin", torch.tensor(float(init_margin)), persistent=True)
+
+    @property
+    def scale(self) -> torch.Tensor:
+        # garantiert > 0 und numerisch stabil
+        return F.softplus(self._scale_param)
 
     def forward(self, x1, x2):
         out1 = self.embedding_net(x1)
@@ -35,9 +58,31 @@ class SiameseNetwork(nn.Module):
         out1 = self.embedding_net(x1)
         out2 = self.embedding_net(x2)
         # Distanz berechnen
-        dist = F.pairwise_distance(out1, out2)
+        dist = torch.nn.functional.pairwise_distance(out1, out2)
         similarity = torch.sigmoid(dist)
         return similarity
+
+    def forward_with_logits(self, x1, x2):
+        """
+        Gibt einen Logit zurück (unbounded), geeignet für BCEWithLogits/FocalLossLogit.
+        Wichtig: KEIN Sigmoid hier anwenden.
+
+        In deinem Fall bedeutet label=1: "Bilder sind unterschiedlich" (difference).
+        Deshalb wollen wir:
+          - kleine Distanz => niedriger Logit => p~0 (nicht unterschiedlich)
+          - große Distanz  => hoher Logit   => p~1 (unterschiedlich)
+        """
+        out1 = self.embedding_net(x1)
+        out2 = self.embedding_net(x2)
+        dist = torch.nn.functional.pairwise_distance(out1, out2)
+        logits = self.scale * (dist - self.margin)
+        return logits
+
+    def forward_with_probability(self, x1, x2):
+        """Nur für Inferenz/Metriken: Wahrscheinlichkeit (difference) aus Logit."""
+        logits = self.forward_with_logits(x1, x2)
+        prob = torch.sigmoid(logits)
+        return prob
 
 
 class FocalLoss(nn.Module):
@@ -56,6 +101,44 @@ class FocalLoss(nn.Module):
         focal_loss = self.alpha * (1 - pt) ** self.gamma * BCE_loss
         return focal_loss.mean()
 
+
+class FocalLossLogit(nn.Module):
+    def __init__(self, alpha: float = 0.25, gamma: float = 2.0, reduction: str = "mean"):
+        super().__init__()
+        self.alpha = float(alpha)
+        self.gamma = float(gamma)
+        if reduction not in ("mean", "sum", "none"):
+            raise ValueError("reduction must be one of: 'mean', 'sum', 'none'")
+        self.reduction = reduction
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """
+        Logit-basierte (numerisch stabile) Focal Loss für binäre Klassifikation.
+
+        logits: rohe Modell-Outputs (unbounded), KEIN Sigmoid vorher anwenden
+        targets: 0/1 Labels (float oder int), gleiche Shape wie logits oder broadcastbar
+        """
+        targets = targets.to(dtype=logits.dtype)
+
+        # Stabiler BCE-Term direkt auf logits
+        bce = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+
+        # p = sigmoid(logits)
+        p = torch.sigmoid(logits)
+
+        # pt = p wenn target=1 sonst (1-p)
+        pt = p * targets + (1.0 - p) * (1.0 - targets)
+
+        # alpha_t = alpha wenn target=1 sonst (1-alpha)
+        alpha_t = self.alpha * targets + (1.0 - self.alpha) * (1.0 - targets)
+
+        focal = alpha_t * (1.0 - pt).pow(self.gamma) * bce
+
+        if self.reduction == "mean":
+            return focal.mean()
+        if self.reduction == "sum":
+            return focal.sum()
+        return focal
 
 
 class ContrastiveLoss(nn.Module):
@@ -267,7 +350,7 @@ class SiameseTrainer:
         valid_loader = DataLoader(valid_dataset, batch_size=self.config.batch_size,
                                   shuffle=False) if valid_dataset else None
         last_saved_f1 = 0
-        criterion = FocalLoss(alpha=0.25, gamma=2.0)
+        criterion = FocalLossLogit(alpha=0.25, gamma=2.0)
         start_epoch = self._load_checkpoint()
         for epoch in range(start_epoch, self.config.num_epochs):
             train_metrics = self._train_epoch(train_loader, criterion, self.optimizer)
@@ -341,13 +424,14 @@ class SiameseTrainer:
         for img1_batch, img2_batch, label in loader:
             img1_batch, img2_batch, label = img1_batch.to(self.device), img2_batch.to(self.device), label.to(
                 self.device)
-            classification = self.model.forward_with_classification(img1_batch, img2_batch)
-            loss = criterion(classification, label)
+            logits = self.model.forward_with_logits(img1_batch, img2_batch)
+            loss = criterion(logits, label)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             running_loss += loss.item() * img1_batch.size(0)
-            pred = (classification > self.config.distance_threshold).long()
+            prob = torch.sigmoid(logits)
+            pred = (prob > self.config.distance_threshold).long()
             all_preds.extend(pred.cpu().numpy().tolist())
             all_targets.extend(label.cpu().numpy().tolist())
         avg_loss = running_loss / len(loader.dataset)
@@ -363,10 +447,14 @@ class SiameseTrainer:
         with torch.no_grad():
             for img1, img2, label in loader:
                 img1, img2, label = img1.to(self.device), img2.to(self.device), label.to(self.device)
-                classification = self.model.forward_with_classification(img1, img2)
-                loss = criterion(classification, label)
+
+                logits = self.model.forward_with_logits(img1, img2)
+                loss = criterion(logits, label)
                 running_loss += loss.item() * img1.size(0)
-                pred = (classification > self.config.distance_threshold).long()
+
+                prob = torch.sigmoid(logits)
+                pred = (prob > self.config.distance_threshold).long()
+
                 all_preds.extend(pred.cpu().numpy().tolist())
                 all_targets.extend(label.cpu().numpy().tolist())
         avg_loss = running_loss / len(loader.dataset)

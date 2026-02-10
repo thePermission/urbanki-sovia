@@ -161,7 +161,7 @@ class TrainingConfig:
     distance_threshold: float = 0.5
     rotate = False
     flip = False
-    start_from_checkpoint: bool = True
+    start_from_checkpoint: bool = False
     num_workers: int = max(1, min(8, (os.cpu_count() or 4) - 1))
     prefetch_factor: int = 4  # prefetch queues of images
 

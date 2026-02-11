@@ -155,7 +155,7 @@ class ContrastiveLoss(nn.Module):
 
 @dataclass
 class TrainingConfig:
-    num_epochs: int = 100
+    num_epochs: int = 1
     batch_size: int = 128
     learning_rate: float = 1e-4
     distance_threshold: float = 0.5
@@ -516,6 +516,7 @@ def main():
 
     trainer.train(train_df, validate_df)
     if save_weights:
+        print("speichere modell")
         torch.save(trainer.model.state_dict(),
                    get_path_to_data(__file__) / f"input/trained_models/{weight_name}_weights.pth")
 

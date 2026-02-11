@@ -502,7 +502,7 @@ class SiameseTrainer:
 
 
 def main():
-    load_weights = True
+    load_weights = False
     save_weights = True
     weight_name = "second_training"
 

@@ -155,7 +155,7 @@ class ContrastiveLoss(nn.Module):
 
 @dataclass
 class TrainingConfig:
-    num_epochs: int = 100
+    num_epochs: int = 1
     batch_size: int = 128
     learning_rate: float = 1e-4
     distance_threshold: float = 0.5
@@ -360,7 +360,8 @@ class SiameseTrainer:
                 valid_metrics = {'loss': 0.0, 'precision': 0.0, 'recall': 0.0, 'f1': 0.0}
             self.metrics_tracker.update_metrics(train_metrics, valid_metrics)
             self.visualizer.plot_metrics(epoch + 1, self.metrics_tracker)
-            self._log_progress(epoch, train_metrics, valid_metrics)
+            margin_val, scale_val = self._get_margin_scale_for_logging()
+            self._log_progress(epoch, train_metrics, valid_metrics, margin_val=margin_val, scale_val=scale_val)
             if valid_metrics["f1"] > last_saved_f1:
                 self._save_checkpoint(epoch + 1)
                 last_saved_f1 = valid_metrics["f1"]
@@ -462,20 +463,46 @@ class SiameseTrainer:
         metrics['loss'] = avg_loss
         return metrics
 
+    def _get_margin_scale_for_logging(self) -> tuple[float | None, float | None]:
+        """
+        Holt (margin, scale) falls das SiameseNetwork diese Parameter hat.
+        Rückgabe (None, None) falls nicht vorhanden, damit Logging robust bleibt.
+        """
+        margin_val: float | None = None
+        scale_val: float | None = None
+
+        if hasattr(self.model, "margin"):
+            m = getattr(self.model, "margin")
+            if torch.is_tensor(m):
+                margin_val = float(m.detach().cpu().item())
+
+        if hasattr(self.model, "scale"):
+            s = getattr(self.model, "scale")
+            if torch.is_tensor(s):
+                scale_val = float(s.detach().cpu().item())
+
+        return margin_val, scale_val
+
     @staticmethod
-    def _log_progress(epoch: int, train_metrics: dict, valid_metrics: dict) -> None:
+    def _log_progress(epoch: int, train_metrics: dict, valid_metrics: dict,
+                      margin_val: float | None = None,
+                      scale_val: float | None = None, ) -> None:
+
+        extra = ""
+        if (margin_val is not None) or (scale_val is not None):
+            extra = f" | margin={margin_val:.6f} | scale={scale_val:.6f}"
         print(
             f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} | "
-            f"Epoch {epoch + 1} | "
+            f"Epoch {epoch + 1}{extra}\n"
             f"Train - Loss: {train_metrics['loss']:.4f} | Precision: {train_metrics['precision']:.4f} | "
-            f"Recall: {train_metrics['recall']:.4f} | F1: {train_metrics['f1']:.4f} || "
+            f"Recall: {train_metrics['recall']:.4f} | F1: {train_metrics['f1']:.4f}\n"
             f"Valid - Loss: {valid_metrics['loss']:.4f} | Precision: {valid_metrics['precision']:.4f} | "
             f"Recall: {valid_metrics['recall']:.4f} | F1: {valid_metrics['f1']:.4f}"
         )
 
 
 def main():
-    load_weights = False
+    load_weights = True
     save_weights = True
     weight_name = "second_training"
 
